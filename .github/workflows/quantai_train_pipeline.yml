@@ -1,0 +1,243 @@
+# .github/workflows/quantai_train_pipeline.yml
+# Deskripsi: File workflow untuk Continuous Integration/Continuous Deployment (CI/CD)
+# pipeline pelatihan model AI.
+# File ini mendefinisikan tahapan-tahapan mulai dari persiapan data hingga deployment model.
+# Dapat diadaptasi untuk platform CI/CD seperti GitHub Actions, GitLab CI, dll.
+
+name: QuantAI Training Pipeline
+
+# Trigger untuk menjalankan workflow:
+# - Setiap kali ada push ke branch 'main'
+# - Setiap kali ada pull request yang ditargetkan ke branch 'main'
+# - Dapat juga dijalankan secara manual melalui UI platform CI/CD
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch: # Memungkinkan trigger manual
+
+jobs:
+  # Job 1: Setup dan Preprocessing Data
+  setup_and_preprocess:
+    runs-on: ubuntu-latest # Menggunakan runner Ubuntu terbaru
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10] # Bisa diuji dengan beberapa versi Python
+    outputs:
+      preprocessed_data_path: ${{ steps.preprocess.outputs.data_path }} # Path output data
+      config_path: 'config/quantai_config.yaml' # Path ke file konfigurasi
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3 # Mengunduh kode dari repository
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Download/Generate Dataset (Placeholder)
+        id: get_data
+        run: |
+          echo "Simulating dataset download/generation..."
+          mkdir -p ./data/raw_csvs
+          # Placeholder: Buat beberapa file CSV dummy untuk demonstrasi
+          # Dalam skenario nyata, ini bisa berupa script untuk mengunduh dari sumber atau API
+          for i in $(seq 1 5); do \
+            echo "date,open,high,low,close,volume" > ./data/raw_csvs/stock_data_$i.csv; \
+            for j in $(seq 1 10); do \
+              echo "2023-01-$((10+j)),$((100+i+j)),$((105+i+j)),$((95+i+j)),$((102+i+j)),$((1000+i*10+j*5))" >> ./data/raw_csvs/stock_data_$i.csv; \
+            done; \
+          done
+          echo "::set-output name=raw_data_dir::./data/raw_csvs"
+
+      - name: Run Preprocessing
+        id: preprocess
+        # Jalankan skrip preprocessing dari internal_workflow/quantai_main_pipeline.py
+        # Ini adalah contoh, aktualnya mungkin memanggil fungsi spesifik
+        run: |
+          python internal_workflow/quantai_main_pipeline.py --mode preprocess --config config/quantai_config.yaml --data_dir ${{ steps.get_data.outputs.raw_data_dir }} --output_dir ./data/processed
+          echo "Preprocessing complete. Processed data stored in ./data/processed"
+          echo "::set-output name=data_path::./data/processed" # Menyimpan path data yang sudah diproses
+
+  # Job 2: Training Model
+  train_model:
+    needs: setup_and_preprocess # Bergantung pada selesainya job setup_and_preprocess
+    runs-on: ubuntu-latest # Bisa juga dikonfigurasi untuk runner dengan GPU jika diperlukan
+    strategy:
+      matrix:
+        python-version: [3.9] # Fokus pada satu versi Python untuk training
+    outputs:
+      model_path: ${{ steps.train.outputs.model_path }}
+      metrics_path: ${{ steps.train.outputs.metrics_path }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # Jika menggunakan GPU, instal TensorFlow versi GPU:
+          # pip install tensorflow[and-cuda] # Sesuaikan dengan versi CUDA Kita
+
+      - name: Download Processed Data (Artifact)
+        # Dalam CI/CD nyata, data yang diproses akan di-pass sebagai artifact
+        # Di sini Kita asumsikan data sudah tersedia atau di-generate ulang jika perlu
+        # Jika setup_and_preprocess menghasilkan artifact, gunakan actions/download-artifact
+        # Contoh:
+        # uses: actions/download-artifact@v3
+        # with:
+        #   name: preprocessed-data
+        #   path: ${{ needs.setup_and_preprocess.outputs.preprocessed_data_path }}
+        # Untuk demo ini, Kita akan mengasumsikan path dari job sebelumnya atau membuat ulang data dummy
+        run: |
+          mkdir -p ${{ needs.setup_and_preprocess.outputs.preprocessed_data_path }}
+          # Sebagai placeholder, Kita buat file dummy jika tidak ada artifact
+          if [ ! -f "${{ needs.setup_and_preprocess.outputs.preprocessed_data_path }}/processed_data.tfrecord" ]; then
+            echo "Placeholder for processed data" > ${{ needs.setup_and_preprocess.outputs.preprocessed_data_path }}/processed_data.tfrecord
+          fi
+
+      - name: Train Model
+        id: train
+        run: |
+          python internal_workflow/quantai_main_pipeline.py \
+            --mode train \
+            --config ${{ needs.setup_and_preprocess.outputs.config_path }} \
+            --processed_data_path ${{ needs.setup_and_preprocess.outputs.preprocessed_data_path }}/processed_data.tfrecord \
+            --model_output_dir ./models/trained_model \
+            --metrics_output_dir ./reports/metrics
+          echo "::set-output name=model_path::./models/trained_model"
+          echo "::set-output name=metrics_path::./reports/metrics"
+
+      - name: Upload Model Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: trained-model
+          path: ${{ steps.train.outputs.model_path }}
+
+      - name: Upload Metrics Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: training-metrics
+          path: ${{ steps.train.outputs.metrics_path }}
+
+  # Job 3: Validasi dan Quantization Model
+  validate_and_quantize_model:
+    needs: train_model # Bergantung pada selesainya job train_model
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9]
+    outputs:
+      quantized_model_path: ${{ steps.quantize.outputs.quantized_model_path }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Download Trained Model Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: trained-model
+          path: ${{ needs.train_model.outputs.model_path }}
+      
+      - name: Download Processed Data (untuk kalibrasi quantization)
+        # Kita mungkin memerlukan sebagian data validasi/training untuk Representative Dataset Provider
+        # uses: actions/download-artifact@v3
+        # with:
+        #   name: preprocessed-data 
+        #   path: ./data/processed 
+        run: |
+          mkdir -p ./data/processed
+          # Placeholder:
+          echo "Placeholder for representative dataset" > ./data/processed/representative_data.tfrecord
+
+      - name: Validate and Quantize Model
+        id: quantize
+        run: |
+          python internal_workflow/quantai_main_pipeline.py \
+            --mode optimize \
+            --config config/quantai_config.yaml \
+            --trained_model_path ${{ needs.train_model.outputs.model_path }} \
+            --representative_dataset_path ./data/processed/representative_data.tfrecord \
+            --quantized_model_output_dir ./models/quantized_model
+          echo "::set-output name=quantized_model_path::./models/quantized_model"
+
+      - name: Upload Quantized Model Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: quantized-model
+          path: ${{ steps.quantize.outputs.quantized_model_path }}
+
+  # Job 4: Packaging dan Deployment (Contoh Sederhana)
+  package_and_deploy:
+    needs: validate_and_quantize_model # Bergantung pada selesainya job validate_and_quantize_model
+    runs-on: ubuntu-latest
+    environment: production # Contoh penggunaan environment untuk deployment
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Download Quantized Model Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: quantized-model
+          path: ${{ needs.validate_and_quantize_model.outputs.quantized_model_path }}
+
+      - name: Package Model (Contoh: zip)
+        run: |
+          zip -r deployable_model.zip ${{ needs.validate_and_quantize_model.outputs.quantized_model_path }}
+          # Tambahkan file lain yang diperlukan untuk deployment, misal: README, API script
+
+      - name: Deploy (Placeholder)
+        # Langkah ini sangat bergantung pada target deployment Kita (misal: cloud storage, server, edge device)
+        # Contoh: upload ke Google Cloud Storage
+        # env:
+        #   GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }} # Service account key dari secrets
+        run: |
+          echo "Simulating deployment of deployable_model.zip..."
+          # aws s3 cp deployable_model.zip s3://my-bucket/models/
+          # gcloud storage cp deployable_model.zip gs://my-bucket/models/
+          echo "Deployment placeholder complete."
+
+# Catatan:
+# - Resource Allocation: Platform CI/CD modern biasanya mengelola resource secara dinamis.
+#   Untuk runner self-hosted, Kita bisa mengkonfigurasi resource (CPU, RAM, GPU) pada mesin runner.
+# - Trigger: Disesuaikan dengan strategi version control tim Kita.
+# - Optimasi Lanjutan:
+#   - Caching dependensi untuk mempercepat build.
+#   - Paralelisasi job jika memungkinkan (misal: training beberapa model varian secara paralel).
+#   - Integrasi dengan tool MLOps seperti MLflow untuk tracking eksperimen yang lebih canggih.
+# Panduan Penggunaan:
+# 1. Sesuaikan trigger (on: ...) sesuai kebutuhan.
+# 2. Konfigurasi secrets (misal: GCP_SA_KEY) di pengaturan repository CI/CD Kita jika diperlukan untuk deployment.
+# 3. Pastikan `requirements.txt` dan `internal_workflow/quantai_main_pipeline.py` serta `config/quantai_config.yaml`
+#    berada di path yang benar dan berfungsi.
+# 4. Untuk penggunaan GPU, pastikan runner CI/CD Kita memiliki GPU dan driver yang sesuai,
+#    serta TensorFlow versi GPU telah diinstal.
