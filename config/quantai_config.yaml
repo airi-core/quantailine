@@ -1,0 +1,121 @@
+# config/quantai_config.yaml
+# Deskripsi: File konfigurasi untuk mengatur parameter model AI dan proses pelatihan.
+# File ini digunakan oleh quantai_main_pipeline.py untuk mengontrol berbagai aspek
+# dari pipeline, mulai dari pemrosesan data hingga optimasi model.
+
+# 1. Konfigurasi Dataset dan Preprocessing
+dataset:
+  # Path ke direktori yang berisi file CSV mentah (relatif terhadap root project atau absolut)
+  # Digunakan jika argumen --data_dir tidak disediakan ke skrip utama.
+  # Di pipeline CI/CD, ini mungkin di-override atau diatur oleh langkah sebelumnya.
+  # raw_data_directory: "./data/raw_csvs/" # Contoh, biasanya di-pass via CLI
+  
+  # Pola file untuk dicari di dalam raw_data_directory (misal: "*.csv", "stock_data_*.csv")
+  file_pattern: "*.csv"
+
+  # Nama kolom di CSV yang digunakan untuk mengurutkan data gabungan (biasanya kolom tanggal/waktu)
+  # Nama ini akan dikonversi ke lowercase secara internal.
+  sort_by_column: "date"
+
+  # Daftar nama kolom yang akan digunakan sebagai fitur dari file CSV.
+  # Pastikan nama-nama ini ada di file CSV Kita. Nama akan dikonversi ke lowercase.
+  # Kolom 'date' (atau yang dispesifikasikan di sort_by_column) akan digunakan untuk sorting
+  # tapi tidak secara langsung sebagai fitur numerik untuk model (kecuali di-engineer).
+  feature_columns: ["open", "high", "low", "close", "volume"]
+  
+  # Nama kolom yang akan dijadikan target prediksi. Akan dikonversi ke lowercase.
+  target_column: "close" # Misalnya, Kita ingin memprediksi harga penutupan
+
+  # Panjang sekuens input (jumlah time steps historis untuk membuat satu prediksi)
+  sequence_length: 60 # Misalnya, menggunakan data 60 hari terakhir
+
+  # Horizon prediksi (jumlah time steps ke depan yang ingin diprediksi)
+  prediction_horizon: 5 # Misalnya, memprediksi untuk 5 hari ke depan
+
+  # Pembagian dataset (proporsi)
+  train_split: 0.7       # 70% untuk training
+  validation_split: 0.15 # 15% untuk validasi
+  test_split: 0.15       # 15% untuk testing (train_split + validation_split + test_split harus = 1.0)
+
+# 2. Arsitektur Model (Hybrid CNN+LSTM)
+model:
+  # Konfigurasi lapisan Convolutional 1D (CNN)
+  cnn_filters: [64, 128]        # Jumlah filter untuk setiap lapisan CNN (misal: 2 lapisan CNN)
+  cnn_kernel_size: 3            # Ukuran kernel untuk lapisan CNN
+  cnn_pool_size: 2              # Ukuran pooling untuk MaxPooling1D
+  cnn_dropout: 0.2              # Dropout rate setelah lapisan CNN (0.0 untuk menonaktifkan)
+  cnn_batch_norm: true          # Gunakan Batch Normalization setelah CNN
+
+  # Konfigurasi lapisan Long Short-Term Memory (LSTM)
+  lstm_units: [100, 50]        # Jumlah unit untuk setiap lapisan LSTM (misal: 2 lapisan LSTM)
+  lstm_dropout: 0.2             # Dropout rate setelah lapisan LSTM (0.0 untuk menonaktifkan)
+  lstm_batch_norm: true         # Gunakan Batch Normalization setelah LSTM
+
+  # Konfigurasi lapisan Dense (Fully Connected)
+  dense_units: [64]             # Jumlah unit untuk lapisan Dense sebelum output (bisa list kosong)
+  dense_dropout: 0.1            # Dropout rate untuk lapisan Dense
+
+# 3. Parameter Pelatihan
+training:
+  epochs: 50                   
+  batch_size: 32               
+                                
+  learning_rate: 0.001         
+  optimizer: "adam"            
+  loss_function: "mse"         
+  
+  early_stopping_patience: 10  
+  
+  random_seed: 42
+
+# 4. Opsi Optimasi Performa dan Model
+optimization:
+  mixed_precision: false       
+                                
+  quantization:
+    enable: true               
+    quant_type: "int8"         
+    use_representative_dataset: true 
+    num_calibration_samples: 150 # Jumlah sampel untuk dataset representatif (kalibrasi int8)
+    int8_fallback_float16: true 
+    fallback_to_fp16_on_error: true 
+
+  pruning:
+    enable: false              
+                               
+    initial_sparsity: 0.25     
+    final_sparsity: 0.75       
+    begin_step: 1000           
+                               
+    end_step: 10000            
+                               
+
+  knowledge_distillation:
+    enable: false              
+    # teacher_model_path: "path/to/large_teacher_model.h5" 
+
+  weight_clustering:
+    enable: false              
+    # number_of_clusters: 16
+    # cluster_centroids_init: 'density-based' 
+
+# 5. Pengaturan Lingkungan Eksekusi
+environment:
+  platform: ["Linux", "macOS", "Windows"]
+  accelerators: ["CPU", "GPU", "TPU"] 
+  min_ram_gb: 4                
+
+# 6. Pengaturan Deployment
+deployment:
+  target_env: "tflite_on_device" 
+  # Opsi spesifik deployment bisa ditambahkan di sini
+
+# Panduan Penggunaan:
+# - Sesuaikan nilai-nilai di atas berdasarkan dataset, hardware, dan tujuan Kita.
+# - Untuk laptop dengan RAM 4GB:
+#   - `batch_size` mungkin perlu dikecilkan (misal, 8 atau 16).
+#   - `sequence_length` dan `prediction_horizon` yang lebih kecil.
+#   - Arsitektur model yang lebih sederhana.
+# - `pruning.begin_step` dan `pruning.end_step` perlu disesuaikan dengan jumlah data training dan batch size.
+# - Untuk `quantization.quant_type: "int8"`, pastikan `representative_dataset_path` di skrip utama
+#   menunjuk ke file .npz yang berisi sampel data representatif.
