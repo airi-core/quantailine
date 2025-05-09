@@ -1,0 +1,53 @@
+# requirements.txt
+# Deskripsi: Daftar dependensi Python yang diperlukan untuk menjalankan sistem QuantAI.
+# File ini digunakan oleh pip untuk menginstal semua package yang dibutuhkan.
+# Versi spesifik disertakan untuk stabilitas dan reproduktifitas.
+
+# --- Core Libraries ---
+# TensorFlow (versi CPU secara default, ganti ke tensorflow-gpu jika perlu dan CUDA terinstal)
+# Untuk TensorFlow 2.x. Pilih versi yang stabil.
+tensorflow>=2.10.0,<2.16.0
+# Jika Kita memiliki GPU NVIDIA yang kompatibel dan CUDA terinstal:
+# tensorflow[and-cuda]>=2.10.0,<2.16.0 # Ini akan menarik versi GPU yang sesuai
+
+# TensorFlow Model Optimization Toolkit (untuk pruning, quantization-aware training, dll.)
+tensorflow-model-optimization>=0.7.0,<0.8.0
+
+# --- Data Handling and Numerics ---
+numpy>=1.23.0,<1.27.0           # Package fundamental untuk komputasi numerik
+pandas>=1.5.0,<2.3.0            # Alat analisis dan manipulasi data (untuk CSV, DataFrames)
+scikit-learn>=1.1.0,<1.5.0      # Library machine learning (untuk preprocessing seperti MinMaxScaler, train_test_split)
+
+# --- Configuration and Utilities ---
+PyYAML>=6.0,<6.1                # Untuk membaca file konfigurasi YAML
+glob2>=0.7,<0.8                 # Untuk pencocokan pola file (alternatif dari modul glob standar jika fitur lebih dibutuhkan)
+joblib>=1.2.0,<1.5.0            # Untuk menyimpan/memuat objek Python (misal: scaler)
+
+# --- Visualization and Experiment Tracking (Opsional, tapi sangat direkomendasikan) ---
+matplotlib>=3.5.0,<3.9.0        # Library plotting (untuk visualisasi hasil, grafik loss)
+tensorboard>=2.10.0,<2.16.0     # Toolkit visualisasi TensorFlow (untuk logging metrik, grafik model)
+# tensorboard-plugin-profile    # Untuk profiling performa TensorFlow (opsional)
+
+# --- MLOps and Deployment Related (Contoh, bisa disesuaikan) ---
+# Jika menggunakan MLflow untuk tracking eksperimen yang lebih canggih:
+# mlflow>=2.0.0,<2.13.0
+
+# Jika membuat API untuk model (contoh):
+# fastapi>=0.80.0,<0.111.0
+# uvicorn>=0.18.0,<0.29.0
+
+# Catatan Instalasi:
+# 1. Disarankan untuk membuat virtual environment sebelum menginstal:
+#    `python -m venv venv_quantai`
+#    `source venv_quantai/bin/activate` (Linux/macOS) atau `venv_quantai\Scripts\activate` (Windows)
+# 2. Instal semua dependensi dengan perintah:
+#    `pip install -r requirements.txt`
+# 3. Jika Kita ingin menggunakan GPU:
+#    - Pastikan driver NVIDIA, CUDA Toolkit, dan cuDNN terinstal dengan benar.
+#    - Ganti `tensorflow` dengan `tensorflow[and-cuda]` atau `tensorflow-gpu` (tergantung versi TF dan cara Kita mengelola CUDA).
+#      Untuk TF 2.10+, `tensorflow` sudah termasuk dukungan GPU jika environment CUDA terdeteksi.
+#      `tensorflow[and-cuda]` adalah cara yang lebih baru untuk memastikan komponen CUDA ditarik.
+# 4. Versi di atas adalah contoh. Kita mungkin perlu menyesuaikannya berdasarkan kompatibilitas
+#    atau jika Kita memerlukan fitur dari versi yang lebih baru/lama.
+#    Selalu periksa catatan rilis library untuk breaking changes.
+# 5. Untuk platform spesifik (misal, Raspberry Pi), Kita mungkin memerlukan build TensorFlow Lite yang berbeda.
