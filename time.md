@@ -10,6 +10,15 @@ Tabel Square of 9 adalah salah satu alat analisis teknikal yang dikembangkan ole
 Tabel Square of 9 adalah susunan angka spiral yang dimulai dari angka 1 di tengah dan bergerak keluar dalam pola spiral searah jarum jam. Berikut adalah contoh dari tabel Square of 9:
 
 ```
+Angka Terpilih & Histori Rooting:
+2:2 1:1
+11:11 → 1+1 =2
+28:28 → 2+8 = 10 → 1+0 = 1
+53:53 → 5+3 = 8
+Signals Santime
+14 → 1+4 = 5
+Ini lima layer, potensial retracment...
+
 --SanClass Trading  Labs--
 65 64 63 62 61 60 59 58 57
 66 37 36 35 34 33 32 31 56
